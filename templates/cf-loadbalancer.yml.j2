@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+
+  Prefix:
+    Type: String
+  ClusterName:
+    Type: String
+  VPC:
+    Type: String
+  Subnet1:
+    Type: String
+  Subnet2:
+    Type: String
+  Scheme:
+    Type: String
+  IdleTimeout:
+    Type: Number
+{% for z in range(0,TARGETS|length) %}
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Port:
+    Type: Number
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Protocol:
+    Type: String
+{% if TARGETS[z].HEALTH_CHECK.PATH.ENABLED is sameas true %}
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}HealthCheckPath:
+    Type: String
+{% endif %}
+{% if TARGETS[z].HEALTH_CHECK.PORT.ENABLED is sameas true %}
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}HealthCheckPort:
+    Type: Number
+{% endif %}
+{% endfor %}  
+  TargetHealthCheckInterval:
+    Type: Number
+  TargetHealthCheckTimeout:
+    Type: Number
+  TargetHealthyThresholdCount:
+    Type: Number
+  TargetUnhealthyThresholdCount:
+    Type: Number
+  TargetHttpCode:
+    Type: Number
+ 
+Resources:
+
+{% for z in range(0,LOAD_BALANCERS|length) %}
+  ALB{{LOAD_BALANCERS[z].NAME}}:  
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: !Sub "${Prefix}-${ClusterName}-{{LOAD_BALANCERS[z].NAME|lower}}"
+      Scheme: !Ref "Scheme"
+      LoadBalancerAttributes:
+        - Key: 'idle_timeout.timeout_seconds'
+          Value: !Ref "IdleTimeout"
+      SecurityGroups: 
+{% for y in range(0,LOAD_BALANCERS[z].SECURITY_GROUPS|length) %}
+        - Fn::ImportValue: !Sub "${ClusterName}-SecurityGroup{{LOAD_BALANCERS[z].SECURITY_GROUPS[y].NAME}}-GroupId"
+{% endfor %}        
+      Subnets:
+        - Ref: Subnet1
+        - Ref: Subnet2
+      Type: application
+      IpAddressType: ipv4
+      Tags: 
+        - Key: ClusterName  
+          Value: !Ref ClusterName
+        - Key: Release
+          Value: {{TAGS.RELEASE}}
+        - Key: Environment
+          Value: {{TAGS.ENVIRONMENT_TYPE}}
+
+{% endfor %}
+{% for z in range(0,LISTENERS|length) %}
+  ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Listener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties: 
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].TARGET_NAME}}Target
+          Type: forward
+      LoadBalancerArn:
+        Ref: ALB{{LISTENERS[z].LB_NAME}}
+      Port: !Ref "{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Port"
+      Protocol: !Ref "{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Protocol"
+
+{% endfor %}
+{% for z in range(0,TARGETS|length) %}
+  ALB{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Target:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: !Ref "TargetHealthCheckInterval"
+{% if TARGETS[z].HEALTH_CHECK.PATH.ENABLED is sameas true %}
+      HealthCheckPath: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}HealthCheckPath"
+{% endif %}
+{% if TARGETS[z].HEALTH_CHECK.PORT.ENABLED is sameas true %}
+      HealthCheckPort: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}HealthCheckPort"
+{% else %}
+      HealthCheckPort: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Port"
+{% endif %}
+      HealthCheckProtocol: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Protocol"
+      HealthCheckTimeoutSeconds: !Ref "TargetHealthCheckTimeout"
+      HealthyThresholdCount: !Ref "TargetHealthyThresholdCount"
+      UnhealthyThresholdCount: !Ref "TargetUnhealthyThresholdCount"
+      Matcher:
+        HttpCode: !Ref "TargetHttpCode"
+      Port: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Port"
+      Protocol: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}Protocol"
+      TargetType: instance
+      VpcId:
+        Ref: VPC
+
+{% endfor %}
+
+Outputs:
+{% for z in range(0,LOAD_BALANCERS|length) %}
+{% if LOAD_BALANCERS[z].OUTPUT is not defined or LOAD_BALANCERS[z].OUTPUT %}
+  ALB{{LOAD_BALANCERS[z].NAME}}:
+    Value: !GetAtt "ALB{{LOAD_BALANCERS[z].NAME}}.DNSName"
+    Export:
+      Name: !Sub "${ClusterName}-ALB{{LOAD_BALANCERS[z].NAME}}-DNSName"
+  ALB{{LOAD_BALANCERS[z].NAME}}FullName:
+    Value: !GetAtt "ALB{{LOAD_BALANCERS[z].NAME}}.LoadBalancerFullName"
+    Export:
+      Name: !Sub "${ClusterName}-ALB{{LOAD_BALANCERS[z].NAME}}-FullName"
+{% endif %}
+{% endfor %}
+{% for z in range(0,LISTENERS|length) %}
+{% if LISTENERS[z].OUTPUT is not defined or LISTENERS[z].OUTPUT %}
+  ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Listener:
+    Value: !Ref "ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Listener"
+    Export:
+      Name: !Sub "${ClusterName}-ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Listener"
+  ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Target:
+    Value: !Ref "ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Target"
+    Export:
+      Name: !Sub "${ClusterName}-ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Target"
+  ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}TargetFullName:
+    Value: !GetAtt "ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Target.TargetGroupFullName"
+    Export:
+      Name: !Sub "${ClusterName}-ALB{{LISTENERS[z].LB_NAME}}{{LISTENERS[z].NAME}}Target-FullName"
+{% endif %}
+{% endfor %}
