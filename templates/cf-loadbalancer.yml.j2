@@ -29,6 +29,12 @@ Parameters:
   {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}HealthCheckPort:
     Type: Number
 {% endif %}
+{% if TARGETS[z].ATTRIBUTES.STICKINESS.ENABLED is sameas true %}
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}StickinessEnabled:
+    Type: String
+  {{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}StickinessCookieDurationSeconds:
+    Type: String
+{% endif %}
 {% endfor %}  
   TargetHealthCheckInterval:
     Type: Number
