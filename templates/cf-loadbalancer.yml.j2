@@ -108,6 +108,15 @@ Resources:
       TargetType: instance
       VpcId:
         Ref: VPC
+{% if TARGETS[z].ATTRIBUTES is defined %}
+      TargetGroupAttributes: 
+{% if TARGETS[z].ATTRIBUTES.STICKINESS.ENABLED is sameas true %}
+        - Key: stickiness.enabled
+          Value: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}StickinessEnabled"
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: !Ref "{{TARGETS[z].LB_NAME}}{{TARGETS[z].NAME}}StickinessCookieDurationSeconds"
+{% endif %}
+{% endif %}
 
 {% endfor %}
 
