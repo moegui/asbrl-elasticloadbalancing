@@ -18,20 +18,32 @@ Role Variables
     - ENVIRONMENT_TYPE: (String)
 - LOAD_BALANCERS: (List)
   - NAME: (String)
-  - SECURITY_GROUPS: (List)
-    - NAME: (String)
+  - TYPE: application | gateway | network
+  - SCHEME: internal | internet-facing
+  - ATTRIBUTES:
+    - KEY: (String)
+    - VALUE: (String)
 - LISTENERS: (List)
   - NAME: (String)
+  - PORT: (Number)
+  - PROTOCOL: GENEVE | HTTP | HTTPS | TCP | TCP_UDP | TLS | UDP
   - LB_NAME: (String)
   - TARGET_NAME: (String)
 - TARGETS:
   - NAME: (String)
   - LB_NAME: (String)
+  - PORT: (Number)
+  - PROTOCOL: GENEVE | HTTP | HTTPS | TCP | TCP_UDP | TLS | UDP
   - HEALTH_CHECK:
-    - PORT:
-      - ENABLED: False (Default)
-    - PATH:
-      - ENABLED: False (Default)
+    - INTERVAL: (Number)
+    - PORT: (Number)
+    - PROTOCOL: GENEVE | HTTP | HTTPS | TCP | TCP_UDP | TLS | UDP
+    - TIMEOUT: (Number)
+  - HEALTHY_THRESHOLD_COUNT: (Number)
+  - UNHEALTHY_THRESHOLD_COUNT: (Number)
+  - ATTRIBUTES:
+    - KEY: (String)
+    - VALUE: (String)
 
 
 Dependencies
@@ -46,38 +58,38 @@ Example Playbook
             include_role:
               name: asbrl-elasticloadbalancing
             vars:
-              TEMPLATE_DEST: ./artifacts/{{EnvironmentType}}/cf-rabbitstack-loadbalancer.yml
+              TEMPLATE_DEST: ./artifacts/{{EnvironmentType}}/cf-mongostack-loadbalancer.yml
               TAGS:
                 RELEASE: "{{Release}}"
                 ENVIRONMENT_TYPE: "{{EnvironmentType}}"
               LOAD_BALANCERS:
-              - NAME: Rabbit
-                SECURITY_GROUPS:
-                - NAME: ALBInternal
-                - NAME: ALBCustom
+              - NAME: Mongo
+                TYPE: network
+                SCHEME: internet-facing
               LISTENERS:
               - NAME: Client
-                LB_NAME: Rabbit
+                PORT: 27017
+                PROTOCOL: TCP
+                LB_NAME: Mongo
                 TARGET_NAME: Client
-              - NAME: Mng
-                LB_NAME: Rabbit
-                TARGET_NAME: Mng
               TARGETS:
               - NAME: Client
-                LB_NAME: Rabbit
+                LB_NAME: Mongo
+                PORT: 27017
+                PROTOCOL: TCP
                 HEALTH_CHECK:
-                  PORT:
-                    ENABLED: true
-                  PATH:
-                    ENABLED: true
-              - NAME: Mng
-                LB_NAME: Rabbit
-
+                  INTERVAL: 30
+                  PORT: 27017
+                  PROTOCOL: TCP
+                  TIMEOUT: 10
+                HEALTHY_THRESHOLD_COUNT: 3
+                UNHEALTHY_THRESHOLD_COUNT: 3
             
 License
 -------
 
-BSD
+GPL-3.0-only
+
 
 Author Information
 ------------------
